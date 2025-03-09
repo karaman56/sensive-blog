@@ -50,71 +50,53 @@ def index(request):
 
 
 def post_detail(request, slug):
-    post = Post.objects.select_related('author').prefetch_related('tags', 'likes').get(slug=slug)
-    comments = Comment.objects.select_related('author').filter(post=post)
-    serialized_comments = []
-    for comment in comments:
-        serialized_comments.append({
-            'text': comment.text,
-            'published_at': comment.published_at,
-            'author': comment.author.username,
-        })
+    post = Post.objects.annotate(
+        likes_count=Count('likes')
+    ).select_related('author').prefetch_related('tags').get(slug=slug)
 
-    likes = post.likes.all()
-
-    related_tags = post.tags.all()
-
-    serialized_post = {
-        'title': post.title,
-        'text': post.text,
-        'author': post.author.username,
-        'comments': serialized_comments,
-        'likes_amount': post.likes_count,
-        'image_url': post.image.url if post.image else None,
-        'published_at': post.published_at,
-        'slug': post.slug,
-        'tags': [serialize_tag(tag) for tag in related_tags],
-    }
-
-    all_tags = Tag.objects.all()
-    popular_tags = sorted(all_tags, key=get_related_posts_count)
-    most_popular_tags = popular_tags[-5:]
-
-    most_popular_posts = []  # TODO. Как это посчитать?
+    # Заменяем ручную сортировку на запрос к БД
+    popular_tags = Tag.objects.annotate(
+        posts_count=Count('posts')
+    ).order_by('-posts_count')[:5]  # Сортировка в БД
 
     context = {
-        'post': serialized_post,
-        'popular_tags': [serialize_tag(tag) for tag in most_popular_tags],
+        'post': serialize_post(post),
+        'popular_tags': [serialize_tag(tag) for tag in popular_tags],
         'most_popular_posts': [
-            serialize_post(post) for post in most_popular_posts
+            serialize_post(post) for post in
+            Post.objects.annotate(likes_count=Count('likes'))
+            .order_by('-likes_count')[:5]
         ],
     }
     return render(request, 'post-details.html', context)
 
 
 def tag_filter(request, tag_title):
-    tag = Tag.objects.prefetch_related(Prefetch('posts', queryset=Post.objects.select_related('author'))).get(title=tag_title)
+    tag = Tag.objects.get(title=tag_title)
 
-    all_tags = Tag.objects.all()
-    popular_tags = sorted(all_tags, key=get_related_posts_count)
-    most_popular_tags = popular_tags[-5:]
 
-    most_popular_posts = []  # TODO. Как это посчитать?
+    popular_tags = Tag.objects.annotate(
+        posts_count=Count('posts')
+    ).order_by('-posts_count')[:5]
 
-    related_posts = tag.posts.all()[:20]
+
+    related_posts = tag.posts.annotate(
+        likes_count=Count('likes'),
+        comments_count=Count('comment')
+    ).select_related('author').prefetch_related('tags')[:20]
 
     context = {
         'tag': tag.title,
-        'popular_tags': [serialize_tag(tag) for tag in most_popular_tags],
+        'popular_tags': [serialize_tag(tag) for tag in popular_tags],
         'posts': [serialize_post(post) for post in related_posts],
         'most_popular_posts': [
-            serialize_post(post) for post in most_popular_posts
+            serialize_post(post) for post in
+            Post.objects.annotate(likes_count=Count('likes'))
+            .order_by('-likes_count')[:5]
         ],
     }
     return render(request, 'posts-list.html', context)
 
 
 def contacts(request):
-    # позже здесь будет код для статистики заходов на эту страницу
-    # и для записи фидбека
     return render(request, 'contacts.html', {})
