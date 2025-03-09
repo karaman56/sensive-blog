@@ -48,9 +48,7 @@ def index(request):
 
 
 def post_detail(request, slug):
-    post = Post.objects.annotate(
-        likes_count=Count('likes')
-    ).select_related('author').prefetch_related('tags').get(slug=slug)
+    post = Post.objects.select_related('author').prefetch_related('tags').get(slug=slug)
     most_popular_posts = Post.objects.annotate(
         likes_count=Count('likes'),
         comments_count=Count('comment')
@@ -69,10 +67,9 @@ def post_detail(request, slug):
 
 
 def tag_filter(request, tag_title):
-    tag = Tag.objects.get(title=tag_title)
-    popular_tags = Tag.objects.annotate(
-        posts_count=Count('posts')
-    ).order_by('-posts_count')[:5]
+    tag = Tag.objects.prefetch_related(
+        Prefetch('posts', queryset=Post.objects.select_related('author'))
+    ).get(title=tag_title)
     related_posts = tag.posts.annotate(
         likes_count=Count('likes'),
         comments_count=Count('comment')
