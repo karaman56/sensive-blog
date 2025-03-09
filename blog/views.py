@@ -28,7 +28,6 @@ def serialize_tag(tag):
     }
 
 def index(request):
-    # Оптимизированные запросы
     most_popular_posts = Post.objects.annotate(
         likes_count=Count('likes'),
         comments_count=Count('comment')
@@ -37,14 +36,13 @@ def index(request):
     most_fresh_posts = Post.objects.select_related('author').prefetch_related('tags').order_by('-published_at')[:5]
 
     popular_tags = Tag.objects.annotate(
-        posts_count=Count('posts')
+        posts_count=Count('posts', distinct=True)
     ).order_by('-posts_count')[:5]
 
     context = {
         'most_popular_posts': [serialize_post(post) for post in most_popular_posts],
         'page_posts': [serialize_post(post) for post in most_fresh_posts],
         'popular_tags': [serialize_tag(tag) for tag in popular_tags],
-
     }
     return render(request, 'index.html', context)
 
@@ -53,11 +51,10 @@ def post_detail(request, slug):
     post = Post.objects.annotate(
         likes_count=Count('likes')
     ).select_related('author').prefetch_related('tags').get(slug=slug)
-
-    # Заменяем ручную сортировку на запрос к БД
-    popular_tags = Tag.objects.annotate(
-        posts_count=Count('posts')
-    ).order_by('-posts_count')[:5]  # Сортировка в БД
+    most_popular_posts = Post.objects.annotate(
+        likes_count=Count('likes'),
+        comments_count=Count('comment')
+    ).order_by('-likes_count')[:5]
 
     context = {
         'post': serialize_post(post),
@@ -73,17 +70,13 @@ def post_detail(request, slug):
 
 def tag_filter(request, tag_title):
     tag = Tag.objects.get(title=tag_title)
-
-
     popular_tags = Tag.objects.annotate(
         posts_count=Count('posts')
     ).order_by('-posts_count')[:5]
-
-
     related_posts = tag.posts.annotate(
         likes_count=Count('likes'),
         comments_count=Count('comment')
-    ).select_related('author').prefetch_related('tags')[:20]
+    ).select_related('author')[:20]
 
     context = {
         'tag': tag.title,
