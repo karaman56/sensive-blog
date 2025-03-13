@@ -1,12 +1,53 @@
 from django.db import models
 from django.urls import reverse
 from django.contrib.auth.models import User
+from django.db.models import Count
+
+
+class PostQuerySet(models.QuerySet):
+    def popular(self):
+        """Сортировка по популярности (количеству лайков)"""
+        return self.annotate(
+            likes_count=Count('likes')
+        ).order_by('-likes_count')
+
+    def fetch_with_comments_count(self):
+        """Добавляет количество комментариев к постам"""
+        posts_ids = [post.id for post in self]
+        posts_with_comments = Post.objects.filter(
+            id__in=posts_ids
+        ).annotate(
+            comments_count=Count('post_comments')
+        )
+
+        # Создаем словарь {id поста: количество комментариев}
+        ids_and_comments = {
+            post.id: post.comments_count
+            for post in posts_with_comments
+        }
+
+        # Добавляем количество комментариев к каждому посту
+        for post in self:
+            post.comments_count = ids_and_comments.get(post.id, 0)
+        return self
 
 
 class PostManager(models.Manager):
+    def get_queryset(self):
+        return PostQuerySet(self.model, using=self._db)
+
+    def popular(self):
+        """Популярные посты"""
+        return self.get_queryset().popular()
+
+    def fetch_with_comments_count(self):
+        """Посты с количеством комментариев"""
+        return self.get_queryset().fetch_with_comments_count()
+
     def year(self, year):
         """Фильтрация постов по году публикации"""
         return self.filter(published_at__year=year)
+
 
 class Post(models.Model):
     title = models.CharField('Заголовок', max_length=200)
@@ -30,7 +71,7 @@ class Post(models.Model):
         related_name='posts',
         verbose_name='Теги')
 
-
+    # Используем кастомный менеджер
     objects = PostManager()
 
     def __str__(self):
@@ -51,7 +92,7 @@ class Post(models.Model):
 
 class TagQuerySet(models.QuerySet):
     def popular(self):
-        return self.annotate(posts_count=models.Count('posts')).order_by('-posts_count')
+        return self.annotate(posts_count=Count('posts')).order_by('-posts_count')
 
 
 class TagManager(models.Manager):
@@ -76,16 +117,17 @@ class Tag(models.Model):
     def __str__(self):
         return self.title
 
+
 class Comment(models.Model):
     post = models.ForeignKey(
         'Post',
         on_delete=models.CASCADE,
-        verbose_name='Пост, к которому написан', related_name='post_comments')
+        verbose_name='Пост, к которому написан',
+        related_name='post_comments')
     author = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
         verbose_name='Автор')
-
     text = models.TextField('Текст комментария')
     published_at = models.DateTimeField('Дата и время публикации')
 
@@ -96,4 +138,3 @@ class Comment(models.Model):
         ordering = ['published_at']
         verbose_name = 'комментарий'
         verbose_name_plural = 'комментарии'
-

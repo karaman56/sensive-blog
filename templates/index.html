@@ -66,25 +66,35 @@
 
     <!--================ Blog slider start =================-->  
     <section>
-      <div class="container">
-        <div class="owl-carousel owl-theme blog-slider">
-          {% for post in most_popular_posts %}
-            <div class="card blog__slide text-center">
-              <div class="blog__slide__img">
-                <a href="{% url 'post_detail' post.slug %}">
-                  <img class="card-img rounded-0" src="{{ post.image_url }}" alt="">
+  <div class="container">
+    <div class="owl-carousel owl-theme blog-slider">
+      {% for post in most_popular_posts %}
+        {% if post.tags.exists %}
+        <div class="card blog__slide text-center">
+          <div class="blog__slide__img">
+            <a href="{% url 'post_detail' post.slug %}">
+              <img class="card-img rounded-0" src="{{ post.image_url }}" alt="">
+            </a>
+          </div>
+          <div class="blog__slide__content">
+            {% if post.first_tag_title %}
+                <a class="blog__slide__label" href="{% url 'tag_filter' post.first_tag_title|slugify %}">
+                    {{ post.first_tag_title }}
                 </a>
-              </div>
-              <div class="blog__slide__content">
-                <a class="blog__slide__label" href="{% url 'tag_filter' post.first_tag_title %}">{{post.first_tag_title}}</a>
-                <h3><a href="{% url 'post_detail' post.slug %}">{{post.title}}</a></h3>
-                <p>{{post.published_at|date:'Y-m-d'}}</p>
-              </div>
-            </div>
-          {% endfor %}
+            {% endif %}
+            <h3><a href="{% url 'post_detail' post.slug %}">{{ post.title }}</a></h3>
+            <p>{{ post.published_at|date:'Y-m-d' }}</p>
+          </div>
         </div>
-      </div>
-    </section>
+        {% else %}
+        <div class="alert alert-warning">
+          Post has no tags
+        </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+</section>
     <!--================ Blog slider end =================-->  
 
     <!--================ Start Blog Post Area =================-->
@@ -236,6 +246,7 @@
               <li><img src="{% static 'img/instagram/i6.jpg' %}" alt=""></li>
               <li><img src="{% static 'img/instagram/i7.jpg' %}" alt=""></li>
               <li><img src="{% static 'img/instagram/i8.jpg' %}" alt=""></li>
+              <li><img src="{% static 'img/default-post.jpg' %}" alt="Default post image"></li>
             </ul>
           </div>
         </div>
