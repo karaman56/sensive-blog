@@ -6,10 +6,10 @@ from blog.models import Post, Tag
 def serialize_tag(tag):
     return {
         'title': tag.title,
-        'posts_with_tag': getattr(tag, 'posts_count', tag.posts.count()),
+        'posts_with_tag': tag.posts_count,
     }
 
-def serialize_post_optimized(post):
+def serialize_post(post):
     return {
         'title': post.title,
         'teaser_text': post.text[:200],
@@ -26,17 +26,16 @@ def serialize_post_optimized(post):
 @cache_page(60 * 15)
 def index(request):
     most_popular_posts = Post.objects.popular() \
+        .with_comments_count() \
         .prefetch_related(
-            Prefetch(
-                'tags',
-                queryset=Tag.objects.annotate(posts_count=Count('posts'))
-            )
-        ).fetch_with_comments_count()[:5]
+            Prefetch('tags', queryset=Tag.objects.annotate(posts_count=Count('posts')))
+        )[:5]
 
-    popular_tags = Tag.objects.annotate(posts_count=Count('posts')).order_by('-posts_count')[:5]
+    popular_tags = Tag.objects.annotate(posts_count=Count('posts')) \
+        .order_by('-posts_count')[:5]
 
     context = {
-        'most_popular_posts': [serialize_post_optimized(post) for post in most_popular_posts],
+        'most_popular_posts': [serialize_post(post) for post in most_popular_posts],
         'popular_tags': [serialize_tag(tag) for tag in popular_tags],
     }
     return render(request, 'index.html', context)
@@ -46,19 +45,25 @@ def post_detail(request, slug):
         Post.objects.annotate(
             likes_count=Count('likes'),
             comments_count=Count('post_comments')
-        ).prefetch_related(
+        )
+        .prefetch_related(
             Prefetch('tags', queryset=Tag.objects.annotate(posts_count=Count('posts')))
-        ).select_related('author'),
+        )
+        .select_related('author'),
         slug=slug
     )
 
-    popular_tags = Tag.objects.annotate(posts_count=Count('posts')).order_by('-posts_count')[:5]
-    most_popular_posts = Post.objects.popular()[:5].fetch_with_comments_count()
-
     context = {
-        'post': serialize_post_optimized(post),
-        'popular_tags': [serialize_tag(tag) for tag in popular_tags],
-        'most_popular_posts': [serialize_post_optimized(post) for post in most_popular_posts],
+        'post': serialize_post(post),
+        'popular_tags': [serialize_tag(tag) for tag in
+                        Tag.objects.annotate(posts_count=Count('posts'))
+                         .order_by('-posts_count')[:5]],
+        'most_popular_posts': [serialize_post(p) for p in
+                              Post.objects.popular()
+                              .with_comments_count()
+                              .prefetch_related(
+                                  Prefetch('tags', queryset=Tag.objects.annotate(posts_count=Count('posts')))
+                              )[:5]],
     }
     return render(request, 'post-details.html', context)
 
@@ -75,14 +80,18 @@ def tag_filter(request, tag_slug):
         Prefetch('tags', queryset=Tag.objects.annotate(posts_count=Count('posts')))
     )[:20]
 
-    popular_tags = Tag.objects.annotate(posts_count=Count('posts')).order_by('-posts_count')[:5]
-    most_popular_posts = Post.objects.popular()[:5].fetch_with_comments_count()
-
     context = {
         'tag': tag.title,
-        'popular_tags': [serialize_tag(tag) for tag in popular_tags],
-        'posts': [serialize_post_optimized(post) for post in related_posts],
-        'most_popular_posts': [serialize_post_optimized(post) for post in most_popular_posts],
+        'popular_tags': [serialize_tag(t) for t in
+                        Tag.objects.annotate(posts_count=Count('posts'))
+                         .order_by('-posts_count')[:5]],
+        'posts': [serialize_post(p) for p in related_posts],
+        'most_popular_posts': [serialize_post(p) for p in
+                              Post.objects.popular()
+                              .with_comments_count()
+                              .prefetch_related(
+                                  Prefetch('tags', queryset=Tag.objects.annotate(posts_count=Count('posts')))
+                              )[:5]],
     }
     return render(request, 'posts-list.html', context)
 
