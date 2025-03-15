@@ -1,15 +1,17 @@
 from django.shortcuts import render, get_object_or_404
 from django.db.models import Count, Prefetch
 from django.views.decorators.cache import cache_page
-from blog.models import Post, Tag, Comment
+from blog.models import Post, Tag
 
 
 def serialize_tag(tag):
-    """Преобразует объект Tag в словарь"""
-    return {'title': tag.title, 'posts_with_tag': tag.posts_count,}
+    return {
+        'title': tag.title,
+        'posts_with_tag': tag.posts_count,
+    }
+
 
 def serialize_post_optimized(post):
-    """Оптимизированная сериализация поста с предзагруженными данными"""
     return {
         'title': post.title,
         'teaser_text': post.text[:200],
@@ -23,14 +25,12 @@ def serialize_post_optimized(post):
         'first_tag_title': post.tags.first().title if post.tags.exists() else None,
     }
 
-# Представления
+
 @cache_page(60 * 15)
 def index(request):
-    most_popular_posts = Post.objects.popular() \
-        .prefetch_related(
-            Prefetch('tags', queryset=Tag.objects.annotate(posts_count=Count('posts')))
-        )[:5] \
-        .fetch_with_comments_count()
+    most_popular_posts = Post.objects.popular().prefetch_related(
+        Prefetch('tags', queryset=Tag.objects.popular())
+    )[:5].fetch_with_comments_count()
 
     popular_tags = Tag.objects.popular()[:5]
 
@@ -40,19 +40,18 @@ def index(request):
     }
     return render(request, 'index.html', context)
 
+
 def post_detail(request, slug):
-    """Страница поста с детальной информацией"""
     post = get_object_or_404(
         Post.objects.annotate(
             likes_count=Count('likes'),
             comments_count=Count('post_comments')
         ).prefetch_related(
-            Prefetch('tags', queryset=Tag.objects.annotate(posts_count=Count('posts')))
+            Prefetch('tags', queryset=Tag.objects.popular())
         ),
         slug=slug
     )
 
-    # Блок популярных данных для сайдбара
     popular_tags = Tag.objects.popular()[:5]
     most_popular_posts = Post.objects.popular()[:5].fetch_with_comments_count()
 
@@ -63,20 +62,18 @@ def post_detail(request, slug):
     }
     return render(request, 'post-details.html', context)
 
+
 def tag_filter(request, tag_slug):
-    """Список постов по тегу"""
     tag = get_object_or_404(
         Tag.objects.annotate(posts_count=Count('posts')),
         slug=tag_slug
     )
 
-    # Посты с тегом и дополнительными аннотациями
     related_posts = tag.posts.annotate(
         likes_count=Count('likes'),
         comments_count=Count('post_comments')
-    ).select_related('author')[:20]
+    ).select_related('author').fetch_with_comments_count()[:20]
 
-    # Блок популярных данных для сайдбара
     popular_tags = Tag.objects.popular()[:5]
     most_popular_posts = Post.objects.popular()[:5].fetch_with_comments_count()
 
@@ -88,6 +85,6 @@ def tag_filter(request, tag_slug):
     }
     return render(request, 'posts-list.html', context)
 
+
 def contacts(request):
-    """Страница контактов"""
     return render(request, 'contacts.html', {})
