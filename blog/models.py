@@ -1,5 +1,4 @@
 from django.db import models
-from django.urls import reverse
 from django.contrib.auth.models import User
 from django.db.models import Count, Prefetch
 
@@ -13,8 +12,6 @@ class PostQuerySet(models.QuerySet):
     def fetch_with_comments_count(self):
         return self.annotate(
             comments_count=Count('post_comments')
-        ).prefetch_related(
-            Prefetch('tags', queryset=Tag.objects.popular())
         )
 
 
@@ -28,41 +25,19 @@ class PostManager(models.Manager):
     def fetch_with_comments_count(self):
         return self.get_queryset().fetch_with_comments_count()
 
-    def year(self, year):
-        return self.filter(published_at__year=year)
-
 
 class Post(models.Model):
-    title = models.CharField('Заголовок', max_length=200)
-    text = models.TextField('Текст')
-    slug = models.SlugField('Название в виде url', max_length=200)
-    image = models.ImageField('Картинка')
-    published_at = models.DateTimeField('Дата и время публикации', db_index=True)
+    title = models.CharField(max_length=200)
+    text = models.TextField()
+    slug = models.SlugField(unique=True)
+    image = models.ImageField(upload_to='posts/')
+    published_at = models.DateTimeField(auto_now_add=True)
 
-    author = models.ForeignKey(
-        User,
-        on_delete=models.CASCADE,
-        verbose_name='Автор',
-        limit_choices_to={'is_staff': True})
-    likes = models.ManyToManyField(
-        User,
-        related_name='liked_posts',
-        verbose_name='Кто лайкнул',
-        blank=True)
-    tags = models.ManyToManyField(
-        'Tag',
-        related_name='posts',
-        verbose_name='Теги')
+    author = models.ForeignKey(User, on_delete=models.CASCADE)
+    likes = models.ManyToManyField(User, related_name='liked_posts')
+    tags = models.ManyToManyField('Tag', related_name='posts')
 
     objects = PostManager()
-
-    def __str__(self):
-        return self.title
-
-    class Meta:
-        ordering = ['-published_at']
-        verbose_name = 'пост'
-        verbose_name_plural = 'посты'
 
 
 class TagQuerySet(models.QuerySet):
@@ -71,28 +46,14 @@ class TagQuerySet(models.QuerySet):
 
 
 class Tag(models.Model):
-    title = models.CharField('Тег', max_length=20, unique=True)
-    slug = models.SlugField(max_length=20, unique=True, blank=True)
+    title = models.CharField(max_length=50, unique=True)
+    slug = models.SlugField(unique=True)
 
     objects = TagQuerySet.as_manager()
 
-    def __str__(self):
-        return self.title
-
 
 class Comment(models.Model):
-    post = models.ForeignKey(
-        Post,
-        on_delete=models.CASCADE,
-        verbose_name='Пост',
-        related_name='post_comments')
-    author = models.ForeignKey(
-        User,
-        on_delete=models.CASCADE,
-        verbose_name='Автор')
-    text = models.TextField('Текст комментария')
-    published_at = models.DateTimeField('Дата и время публикации')
-
-    class Meta:
-        ordering = ['published_at']
-        verbose_name = 'комментарий'
+    post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name='post_comments')
+    author = models.ForeignKey(User, on_delete=models.CASCADE)
+    text = models.TextField()
+    published_at = models.DateTimeField(auto_now_add=True)
