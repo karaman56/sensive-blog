@@ -104,7 +104,7 @@ class TagManager(models.Manager):
 
 
 class Tag(models.Model):
-    title = models.CharField('Тег', max_length=20, unique=True, db_index=True)
+    title = models.CharField('Тег', max_length=20, unique=True)
     slug = models.SlugField(max_length=20, unique=True, blank=True)
 
     def save(self, *args, **kwargs):
@@ -112,7 +112,7 @@ class Tag(models.Model):
             self.slug = slugify(self.title)
         super().save(*args, **kwargs)
 
-    objects = TagManager()
+    objects = TagQuerySet.as_manager()
 
     def __str__(self):
         return self.title
@@ -138,3 +138,5 @@ class Comment(models.Model):
         ordering = ['published_at']
         verbose_name = 'комментарий'
         verbose_name_plural = 'комментарии'
+
+

@@ -3,13 +3,10 @@ from django.db.models import Count, Prefetch
 from django.views.decorators.cache import cache_page
 from blog.models import Post, Tag, Comment
 
-# Функции сериализации (должны быть объявлены до использования в представлениях)
+
 def serialize_tag(tag):
     """Преобразует объект Tag в словарь"""
-    return {
-        'title': tag.title,
-        'posts_with_tag': tag.posts_count if hasattr(tag, 'posts_count') else 0,
-    }
+    return {'title': tag.title, 'posts_with_tag': tag.posts_count,}
 
 def serialize_post_optimized(post):
     """Оптимизированная сериализация поста с предзагруженными данными"""
