@@ -3,15 +3,15 @@ from blog.models import Post, Tag, Comment
 
 @admin.register(Comment)
 class CommentAdmin(admin.ModelAdmin):
-    list_display = ['author', 'post', 'published_at']  # Оптимизирует отображение списка
-    list_select_related = ['author', 'post']          # Убирает N+1 проблему
-    raw_id_fields = ['author', 'post']                # Заменяет выпадающие списки на ID
+    list_display = ['author', 'post', 'published_at']
+    list_select_related = ['author', 'post']
+    raw_id_fields = ['author', 'post']
     search_fields = ['text']
 
 @admin.register(Post)
 class PostAdmin(admin.ModelAdmin):
     list_display = ['title', 'author', 'published_at']
-    raw_id_fields = ['author', 'tags']                # Оптимизация для связей
+    raw_id_fields = ['author', 'tags']
     list_filter = ['published_at']
     search_fields = ['title', 'text']
 
