@@ -19,3 +19,4 @@ class PostAdmin(admin.ModelAdmin):
 class TagAdmin(admin.ModelAdmin):
     list_display = ['title', 'slug']
     search_fields = ['title']
+
