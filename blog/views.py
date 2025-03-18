@@ -23,41 +23,50 @@ def serialize_post(post):
         'first_tag_title': post.tags.first().title if post.tags.exists() else None,
     }
 
+
 def get_popular_tags():
-    popular_tags = cache.get('popular_tags')
-    if not popular_tags:
-        popular_tags = list(Tag.objects.popular()[:5])
-        cache.set('popular_tags', popular_tags, 60 * 15)
-    return popular_tags
+    cache_key = 'popular_tags_serialized'
+    serialized_tags = cache.get(cache_key)
+
+    if not serialized_tags:
+        tags = Tag.objects.popular()[:5]
+        serialized_tags = [serialize_tag(tag) for tag in tags]
+        cache.set(cache_key, serialized_tags, 60 * 15)
+
+    return serialized_tags
+
 
 def get_most_popular_posts():
-    cache_key = 'most_popular_posts'
-    most_popular_posts = cache.get(cache_key)
-    if not most_popular_posts:
-        most_popular_posts = list(Post.objects.popular()
-                                  .with_comments_count()
-                                  .with_prefetched_tags()
-                                  .select_related('author')[:5])
-        cache.set(cache_key, most_popular_posts, 60 * 15)
-    return most_popular_posts
+    cache_key = 'most_popular_posts_serialized'
+    serialized_posts = cache.get(cache_key)
+
+    if not serialized_posts:
+        posts = Post.objects.popular() \
+                    .with_comments_count() \
+                    .with_prefetched_tags() \
+                    .select_related('author')[:5]
+
+        serialized_posts = [serialize_post(post) for post in posts]
+        cache.set(cache_key, serialized_posts, 60 * 15)
+
+    return serialized_posts
+
 
 @cache_page(60 * 15)
 def index(request):
-    most_popular_posts = get_most_popular_posts()
-    popular_tags = get_popular_tags()
-
     context = {
-        'most_popular_posts': [serialize_post(post) for post in most_popular_posts],
-        'popular_tags': [serialize_tag(tag) for tag in popular_tags],
+        'most_popular_posts': get_most_popular_posts(),
+        'popular_tags': get_popular_tags(),
     }
     return render(request, 'index.html', context)
+
 
 def post_detail(request, slug):
     post = get_object_or_404(
         Post.objects
-            .with_comments_count()
-            .with_prefetched_tags()
-            .select_related('author'),
+        .with_comments_count()
+        .with_prefetched_tags()
+        .select_related('author'),
         slug=slug
     )
 
@@ -71,10 +80,11 @@ def post_detail(request, slug):
 def tag_filter(request, tag_slug):
     tag = get_object_or_404(Tag.objects.popular(), slug=tag_slug)
 
-    related_posts = tag.posts.all() \
+    related_posts = Post.objects.filter(tags=tag) \
         .with_comments_count() \
         .with_prefetched_tags() \
-        .select_related('author')[:20]
+        .select_related('author') \
+        .distinct()[:20]
 
     context = {
         'tag': tag.title,
